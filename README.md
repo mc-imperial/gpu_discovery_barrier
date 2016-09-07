@@ -1,19 +1,20 @@
-Author: Tyler Sorensen
+Author: Tyler Sorensen 
+
 Last revised: 1 Sept. 2016
 
-=== Table of Contents ===
+# Table of Contents
 
--- Introduction
+- Introduction
 
--- Licenses and Copyright
+- Licenses and Copyright
 
--- Running the Code
+- Running the Code
    - Obtaining Inputs
    - Running
 
--- Known Issues
+- Known Issues
 
-=== Introduction ===
+# Introduction
 
 This is the code for the paper:
 
@@ -35,17 +36,17 @@ Please contact Ally or Tyler if have questions or comments about this
 code:
 
 Tyler Sorensen 
-t.sorensen15 AT imperial.ac.uk
+t.sorensen15 AT imperial DOT ac DOT uk
 
 Alastair F. Donaldson
-alastair.donaldson AT imperial.ac.uk
+alastair.donaldson AT imperial DOT ac DOT uk
 
-=== Licenses and Copyright ===
+# Licenses and Copyright
 
 This code consists of 3 different code bases, all with different
 licenses and copyright holders.
 
---- Discovery Protocol ---
+### Discovery Protocol
 
 The original code written for this project consists of the discovery
 protocol, the XF barrier (written using the discovery protocol and
@@ -61,7 +62,7 @@ Donaldson.
 The code is released under the BSD license which can be found in
 licenses/discovery_protocol
 
---- LonestarGPU OpenCL ---
+### LonestarGPU OpenCL
 
 The original LonestarGPU code is released under the University of
 Texas research license, which it maintains.
@@ -75,7 +76,7 @@ licenses/lonestar_gpu
 The original LonestarGPU code can be obtained from:
 http://iss.ices.utexas.edu/?p=projects/galois/lonestargpu
 
---- Pannotia ---
+### Pannotia
 
 The Pannotia applications are provided with a license by AMD.
 
@@ -88,9 +89,9 @@ code/experiments/pannotia
 The original Pannotia code can be obtained from:
 https://github.com/pannotia/pannotia
 
-=== Running the Code ===
+# Running the Code
 
---- Obtaining Inputs ---
+### Obtaining Inputs
 
 To run the Pannotia or LonestarGPU applications, you will need to obtain
 the (large) graph files as input.
@@ -102,7 +103,7 @@ code/experiments/lonestar_gpu_opencl/inputs/README.txt
 
 We have provided google drive links containing these datasets.
 
---- Running ---
+### Running
 
 We believe the code is straightforward to run. It uses a
 cross-platform (Windows and Linux) CMake build system and the
@@ -114,7 +115,7 @@ artifact evaluation guide: OOPSLA_AE.txt. This guide was reviewed and
 accepted by the OOPSLA'16 artifact evaluation committee, so we believe
 it should be sufficient.
 
-=== Known Issues ===
+# Known Issues
 
 It was very difficult to get these applications running reliably across
 all the GPUs we tested. We encountered many interesting issues, and we
@@ -125,7 +126,7 @@ Development" appearing in IWOCL'16
 
 Here are some issues we have found that are still present in this code:
 
---- Intel Compiler Crash ---
+### Intel Compiler Crash
 
 When running on Intel GPUs on Windows, the compiler seems to
 non-deterministically crash (which crashes the application).
@@ -133,7 +134,7 @@ non-deterministically crash (which crashes the application).
 The application we find that suffers from this problem the worse
 is the occupancy microbenchmarks
 
---- LonestarGPU DMR Application ---
+### LonestarGPU DMR Application
 
 We have only been able to get this application working reliably on
 Nvidia chips. And even on these chips, it crashes about 1% of the time
@@ -143,7 +144,7 @@ or produce wrong results 100% of the time.
 The original DMR comes with a warning. We pass this warning remains
 valid (and perhaps even more so) in our OpenCL port.
 
---- Structs and Global Memory Pointers---
+### Structs and Global Memory Pointers
 
 Our LonestarGPU ports pass structures to kernels which contain global
 memory pointers. This is technically undefined behaviour in OpenCL and
