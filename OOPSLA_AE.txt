@@ -1,0 +1,472 @@
+Author: Tyler Sorensen and Alastair F. Donaldson
+Last revised: 1 Sept. 2016
+
+=== Table of Contents ===
+
+-- Introduction
+
+-- Requirements 
+  - GPU requirements
+  - System requirements
+  - Extra
+
+-- Experiments
+  - Common
+  - Occupancy microbenchmarks
+  - Applications 
+    + Pannotia
+    + LonestarGPU
+
+-- Extra
+  - Change the target GPU
+
+=== Introduction ===
+
+Welcome to the artifact for the OOPSLA paper:
+"Portable Inter-Workgroup Barrier Synchronisation for GPUs"
+
+The results in the paper show results for 8 different GPUs across 4
+vendors. It is unrealistic to expect you to have all these resources
+(and setting them up to execute OpenCL is a big task in and of
+itself!). 
+
+Instead of replicating the exact performance and occupancy numbers in
+the paper (which are very device/application sensitive), we instead
+want to focus on the *main* point of the paper which is portability
+and effectiveness of our occupancy discovery protocol.
+
+With that being said, this artifact aims to show:
+
+a) The applications using our global barrier are in fact portable
+across GPUs and require no a priori knowledge about the target GPU
+occupancy.
+
+b) Without our method, these applications can deadlock
+
+c) Our occupancy discovery protocol is effective at estimating the
+true occupancy.
+
+To show this, we allow you the freedom to pick any OpenCL 2.0
+compliant GPU (or select Nvidia GPUs). Our applications should work
+"out of the box" while the original applications may deadlock.
+
+We additionally provide the occupancy microbenchmarks so you may
+test the effectiveness of our discovery protocol.  
+
+We hope you will agree that these points cover the main points of
+our paper.
+
+=== Requirements ===
+
+-- GPU --
+
+Due to GPU memory model quirks in older models, this artifact requires
+a GPU that supports at least OpenCL 2.0. This is because OpenCL 2.0
+is the OpenCL version which introduced the memory model. The memory
+model allows us to formally reason about the barrier (as shown in
+Sec. 4 of the paper). Without the memory model, the guarantees
+provided in this section may not be honoured.
+
+Some examples of such GPUs are:
+
+- fifth generation Intel GPUs (e.g. HD 5500)
+- AMD GPUs with GNC 1.1 or greater (e.g. Radeon R9 290)
+
+We have additionally added support for: 
+
+- Nvidia GPUs from Kepler and Maxwell architectures (e.g. GTX Titan
+  series, Tesla K series, Quadro K series).
+
+- ARM Mali GPUs T6X series
+
+-- System --
+
+Because our method can yield long running kernels, we also require
+control over the "GPU watchdog". At least the ability to disable
+it. This may require admin privileges on the machine.
+
+For example, the GPU watchdog on Windows machines is controlled in 
+the registry, see:
+https://msdn.microsoft.com/en-us/library/windows/hardware/ff569918(v=vs.85).aspx
+
+On Linux, see the following:
+http://stackoverflow.com/questions/15833261/how-to-disable-or-change-the-timeout-limit-for-the-gpu-under-linux
+
+For Linux servers not running a graphics server, the watchdog *may* be
+disabled by default.
+
+In our experience, Windows or a non-graphical Linux is the easiest
+system to deal with. We also found Intel and Nvidia GPUs to be the
+easiest to deal with.
+
+On other devices (e.g. mobile phones and Chromebooks) we have found it
+very difficult to control the watchdog. Experiment on these systems at
+your own risk!
+
+Three final considerations on this topic:
+
+- There is an AMD OpenCL driver bug on Linux, which breaks the
+  watchdog.  Thus AMD GPUs on Linux probably won't work.
+
+- While OSX systems support OpenCL, we are not aware of an OSX OpenCL
+  2.0 implementation. Thus OSX systems probably will not work.
+
+- AMD OpenCL 2.0 support is only provided for 64 bit builds. Thus when
+  building applications you will need to specify a 64 bit build for
+  CMake.
+
+-- Other requirements --
+
+We also require Python 2.7 and the ability to run python scripts
+from the command line (Windows or Linux is fine).
+
+We require CMake (tested with version 2.8) for building, and then some
+compiler that CMake is able to target. The cmake executable should
+also be in the PATH.
+
+=== Experiments ===
+
+-- Common --
+
+- OpenCL and CMake -
+
+We use CMake for cross-platform portability. CMake must be able to
+find the OpenCL headers and libraries. Because different vendors
+distribute OpenCL differently this can be difficult to do in a truly
+portable way. 
+
+We have included a CMake module:
+
+code/experiments/common/cmake/FindOpenCL.cmake
+
+which has been successful at locating OpenCL on all the systems
+we have tested (including Nvidia, AMD, Intel). If your OpenCL
+installation isn't standard, you may need to modify this file.
+
+- Building using CMake -
+
+To build using CMake, simply go to the root directory of the specific
+experiment (there is a different root for each set of experiments). These
+roots are:
+
+code/experiments/occupancy_tests/CMakeLists.txt
+code/experiments/pannotia/CMakeLists.txt
+code/experiments/lonestar_gpu_opencl/CMakeLists.txt
+
+In these directories make a new directory called "build"
+
+change directory into "build" and execute:
+
+$ cmake ../
+
+This will create build files in the current directory.
+From there compiling will depend on your system. For 
+example:
+
+-On Linux you should be able to immediately run "make"
+
+-On Windows you will likely have to compile through Visual Studio.
+
+The executables will be located in 
+
+build/bin
+
+Visual studio may additionally make a "Debug" folder, e.g.
+
+bulid/bin/Debug
+
+From now on, when we refer to "building" we will mean this
+CMake process.
+
+-- Occupancy microbenchmarks --
+
+These experiments measure the effectiveness of the occupancy discovery
+protocol as discussed in section 5.1. The data produced by these
+experiments produce figure 6 and figure 14 (in the appendix).
+
+The directory for this experiment is located in:
+code/experiments/occupancy_tests
+
+Go to this directory and build the code using CMake as described
+above. You should have 3 executables in the bin (or bin/Debug for
+Windows) directory:
+
+device_query  occupancy_test  time_prot
+
+and a directory for the OpenCL kernels:
+kernels
+
+You can run ./device_query (from the bin directory) to test your
+build. You should see information of your device. If you have more
+than 1 GPU and want to experiment with a different one, see the EXTRAS
+section at the end of this document.
+
+Because this experiment requires intentionally deadlocking the GPU to
+find the actual occupancy, the watchdog must be set up. Because
+different systems handle the watchdog differently, this is different
+per system. On Windows the watchdog should be enabled to kill the GPU
+application after ~10 seconds (using the TdrDelay register). On Linux
+the experiment should be run from a virtual terminal (e.g. on Ubuntu
+press: ctrl+alt+F1) to avoid graphics freezes. The watchdog should be
+*disabled* on Linux systems.
+
+You may then run the benchmark script by navigating to the script
+directory: code/experiments/occupancy_tests/scripts
+and running:
+
+$ python run_occupancy_tests.py <path to executables> <iterations>
+
+50 iterations is usually good. The path to the executables are where
+the executables are stored from the CMake build. For example, on Linux
+this would be:
+         
+$ python run_occupancy_timing.py ../build/bin/ 50
+
+The program will initially begin with a binary search for the actual
+occupancy.  On windows you will see your display freeze (until the
+watchdog catches it). On Linux, the system may hang until the script
+kills it. It is best not to use the computer while the script is
+running. This process will repeat several times.
+
+This script should not take longer than 45 minutes total. Note on
+Intel: there is a known non-deterministic compiler bug that can crash
+the experiment. In this case, you may need to restart the experiment.
+
+This experiment will create a file:
+
+<chip_name>.txt
+
+The file contains results for 4 microbenchmarks:
+min local memory/max workgroup size
+min local memory/min workgroup size
+max local memory/min workgroup size
+max local memory/max workgroup size
+
+For each microbenchmark, the file (<chip_name>.txt) shows: 
+
+-the true occupancy 
+-a list of all the occupancy estimates with the spin lock
+-the average occupancy found by the spin lock
+-the standard deviation of the spin lock occupancies 
+-a list of all the occupancy estimates with the ticket lock
+-the average occupancy found by the ticket lock
+-the standard deviation of the ticket lock occupancies 
+
+OBSERVATION: As shown in figure 6, you should observe that the ticket
+consistently finds a higher occupancy (should be close to the true
+occupancy) for each benchmark. It should not have a high standard
+deviation.
+
+To run runtime scaling experiements as shown in the appendix (figure
+14), run the run_occupancy_timing.py script similar to above, e.g.
+
+$ python run_occupancy_timing.py ../build/bin/ 20
+
+We suggest 20 iterations for this one. Again, this script should take
+less than 45 minutes to run. This script creates a csv file:
+
+<name of chip>_timing.txt
+
+Which can be plotted in your favourite graphing utility.  Plot column
+0 against column 1 to see scaling of the protocol using the ticket
+lock. Plot column 0 against column 2 to see the scaling of the
+protocol using the spin lock.
+
+OBSERVATION: As shown in appendix D, different chips give different
+scaling characteristics. For some chips, the ticket lock scales
+better, for others, the spin lock scales better. You should at least
+see some scaling effects (i.e. the higher true_occ is, the longer the
+protocol should take).
+
+-- Applications --
+
+Here we show how to run the Pannotia and LonestarGPU benchmarks
+amended with our discovery protocol and barrier. These benchmarks
+are portable meaning they should run without any a priori 
+information about the GPU.
+
+- Pannotia -
+
+The Pannotia benchmarks use the multi-kernel approach and are
+discussed in section 5.2.
+
+For these benchmarks, the GPU watchdog should be disabled as
+the applications can contain long running kernels. 
+
+The pannotia benchmarks as located in:
+
+code/experiments/pannotia
+
+Go to the directory and build the applications.
+
+The applications can then be run directly from the 
+application bin directory. Applications with the -gb prefix
+use the global barrier. Applications without the -gb prefix
+use the multi-kernel approach. 
+
+For each application, you must provide the input graph file and
+workgroup size (along with a "graph type" tag). Running the
+application with no arguments leads to the application printing a
+message explaining how to correctly supply arguments. 
+
+Graph inputs are in directories named after the application they
+are for. The exception is the 'mis' application which takes the
+'color' graphs as input.
+
+To run all applications and data-set used in the paper,
+and validate the outputs, move to:
+
+code/experiments/pannotia/scripts 
+
+and run:
+
+python run_suite.py <path to executables> <path to data> <name of run> <name of chip>
+
+where <name of run> is simply an identifier for the run and <name of
+chip> is some name for the chip being tested. It is up to the
+evaluator to choose suitable names here, but functionally, it does not
+matter what these arguments are. These are used for data-output
+only. An example run line is:
+
+python run_suite.py ../build/bin/ ../dataset/ test GPU_1
+
+The time to finish the script depends heavily on the size of the GPU.
+Bigger GPUs will finish faster. The script should take less than 45
+minutes unless it is being run on an extremely small GPU (mobile GPU,
+or APU). In this case it could take up to 6 hours.
+
+This produces a csv file called:
+
+<name of run>_data.txt
+
+Each row shows data for an application. Column 1 shows the average
+time using the multi-kernel approach (no global barrier). Column 2
+shows the average time using the global barrier. 
+
+OBSERVATION: As we show in section 5.2 (figure 7 specifically), the
+time differences is heavily dependent on the chip/application and
+input data set. The main contribution here is that the applications
+using the global barrier are portable and require no user provided
+data about the chip.
+
+OPTIONAL: If you want to tune the application for a good work-group size,
+you can run tune_wg_size.py and add the data to wg_size_data.py
+
+- LonestarGPU -
+
+The LonestarGPU benchmarks are used to illustrate portability
+vs. specialisation. These results are discussed in section 5.3.
+
+For these benchmarks, the GPU watchdog will need to be alternated.
+Some experiments require an enabled watchdog while others do not.
+
+The LonestarGPU benchmarks are located in:
+
+code/experiments/lonestar_gpu_opencl
+
+To begin, build the applications. This produes two variants of each
+application: <app>-port and <app>-non-port. The '-port' variant uses
+our discovery protocol and a portable barrier, while the '-non-port'
+applications use the original unsafe global barrier.  
+
+These applications can then be run in isolation or in a large
+benchmarking campaign. The '-port' applications each take the
+workgroup size and a graph input 
+
+Input graphs can be found in the directory:
+
+code/experiments/lonestar_gpu_opencl/inputs
+
+The valid graphs are:
+bfs: r4-2e23.gr rmat22.gr USA-road-d.USA.gr
+mst: 2d-2e20.sym.gr USA-road-d.FLA.sym.gr
+sssp: r4-2e23.gr rmat22.gr USA-road-d.USA.gr
+
+dmr requires a 'max factor arg' and takes several input files. 
+These are the recommended args for dmr.
+
+./dmr INPUTS/250k.2 <threads per workgroup> 20
+./dmr INPUTS/r1M <threads per workgroup> 20
+./dmr INPUTS/r5M <threads per workgroup> 12
+
+!!! BEWARE: DRM IS KNOWN TO CRASH ON SOME SYSTEMS         !!!
+!!! See 'known' issues in README.txt for more information !!!
+
+The '-non-port' applications can be run in the same manner as the
+'-port' application except this time, a third argument, the number of
+workgroups must be specified.
+
+To experiment with these applications, it is best to turn the watchdog
+on (for Windows at least). Otherwise a GPU deadlock can require a
+system re-boot. Every application should work with 1 workgroup, but
+raising this number too high will cause deadlock. For example, all
+GPUs should deadlock with 1000 workgroups.
+
+OBSERVATION: As discussed in section 5.3, the original Lonestar
+benchmarks are non-portable and you can observe the occupancy depends
+on the threads per workgroup and application.
+
+OPTIONAL: Running the applications in bulk. This is more difficult
+than the pannotia benchmarks because you must provide a safe occupancy
+per application (and a given number of threads per workgroup) to run
+the non-portable Lonestar applications with.
+
+Determining this occupancy is difficult because it can be difficult to
+tell if the kernel is deadlocked, or simply long running (e.g. the
+sssp application can be very long running [more than 2 hours] on
+smaller chips). This is why we do not automate this process (and also
+another reason why we believe our methods are valuable).
+
+If you choose to do this, you will need to manually perform a search
+for a safe occupancy. Afterwards, you will need to edit the file:
+
+code/experiments/lonestar_gpu_opencl/scripts/wg_size_data.py
+
+with dictionary entries describing your findings. The dictionary takes
+a tuple:
+
+(<chip name>, <application>, <input>) 
+
+and maps to another tuple:
+
+(<number of threads per workgroup>, <number of workgroups>)
+
+There are some examples provided.
+
+After this, you may run:
+
+python run_suite.py <path to executables> <path to inputs> <name of run> <name of chip>
+
+Where the <name of chip> must match the name given in wg_size_data.py
+
+Because the sssp application can take a long time to run, this script
+can take anywhere from 45 minutes to 12 hours to finish. You can
+disable the sssp app by opening up run_suite.py and commenting out
+the sssp entry in the PROGRAMS set at the top of the file. 
+
+much like with the pannotia benchmarks, this will create a csv file:
+<name of run>.txt
+
+In this csv file you can compare the runtime of uses a portable global
+barrier vs a non-portable barrier. The second column shows the
+average runtime of the portable barrier while the 7th column shows
+the average of the non-portable barrier.
+
+OBSERVATION: Much like pannotia, our results show that runtime
+differences can vary substantially between chips/applications and
+inputs. However, we usually see the non-portable barrier applications
+being faster than the portable barrier. These results are shown in 
+figure 8 and discussed in section 5.3.
+
+=== EXTRAS ===
+
+-Change the target GPU:
+
+by default, our applications target the first GPU the OpenCL framework
+returns. This can be changed in:
+
+code/experiments/common/include/OpenCL/my_opencl.h
+
+Make sure the MAX_DEVICES macro is set high enough to account for
+all GPUs on your system. and change the REQUESTED_DEVICE macro
+to the GPU you want to target.
